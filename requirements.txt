@@ -1,0 +1,6 @@
+fyers-apiv3
+pandas
+python-dotenv
+pyarrow
+jinja2
+tqdm

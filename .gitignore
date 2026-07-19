@@ -1,0 +1,21 @@
+# Security / Credentials
+.env
+
+# Logs
+*.log
+
+# Downloaded Data
+data/
+*.parquet
+*.csv
+
+# Python/Environments
+.venv/
+venv/
+env/
+.conda/
+__pycache__/
+*.py[cod]
+
+# VS Code
+.vscode/
