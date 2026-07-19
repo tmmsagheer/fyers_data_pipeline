@@ -10,7 +10,7 @@ def main():
     
     # Read tickers from CSV
     try:
-        tickers_df = pd.read_csv("tickers.csv")
+        tickers_df = pd.read_csv("data/NSE500_Fyers_Format.csv")
         symbols = tickers_df['symbol'].dropna().tolist()
     except FileNotFoundError:
         print("Error: tickers.csv not found. Please create it in the root directory.")

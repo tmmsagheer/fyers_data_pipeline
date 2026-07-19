@@ -1,22 +1,32 @@
 # Fyers Data Pipeline & Local Data Lake
 
-A robust, incremental data ingestion pipeline for fetching 1-minute OHLCV historical data for Indian Equity stocks (NSE500) via the Fyers API (v3). 
+A robust, incremental data ingestion pipeline for fetching 1-minute OHLCV historical data for Indian Equity stocks via the Fyers API (v3). 
 
-This pipeline is designed as the foundational data layer for a quantitative trading engine. It dynamically handles API constraints, prevents duplicate downloads, stores data in highly compressed formats, and monitors data health via a local dashboard.
+This pipeline is designed as the foundational data layer for a quantitative trading engine. It dynamically handles API constraints, translates broker-specific ticker anomalies, stores data in highly compressed Parquet formats, and audits data health via a local dashboard.
 
 ## Architecture & Project Structure
-* `src/config.py`: Configuration parameters and API rate limit buffers.
-* `src/client.py`: API initialization script utilizing environment variables.
-* `src/fetcher.py`: The core ingestion loop managing 100-day chunking, deduplication, and Parquet writing.
-* `src/dashboard.py`: Scans data layers to generate a local data integrity health report.
-* `auth.py`: Interactive script for generating the daily regulatory-mandated access token.
-* `main.py`: Main orchestration entry point.
-
+```text
+fyers_data_pipeline/
+├── data/                    # Storage for CSV lists and downloaded Parquet files
+├── src/
+│   ├── config.py            # Configuration parameters and API rate limit buffers
+│   ├── client.py            # API initialization script utilizing environment variables
+│   ├── fetcher.py           # Core ingestion loop (chunking, deduplication, Parquet writing)
+│   └── dashboard.py         # Scans data layers to generate a local HTML health report
+├── utils/
+│   ├── tv_to_fyers.py       # Ticker mapping (TradingView format to strict NSE format)
+│   └── find_missing.py      # Audits Parquet storage against expected CSV lists
+├── auth.py                  # Generates daily Fyers access tokens securely
+├── main.py                  # Main orchestration entry point
+├── pipeline.log             # Auto-overwriting diagnostic trace log
+└── requirements.txt
+```
 ## Key Features
 * **Secure Token Separation:** `auth.py` reads your static App ID and Secret Key securely from `.env` to execute the OAuth flow, ensuring no keys are hardcoded.
 * **Intelligent Chunking & Resumption:** Automatically splits large date ranges into 99-day windows to satisfy Fyers API limitations. It auto-detects existing local checkpoints to fetch only new candles.
 * **High-Performance Storage:** Data is stored using the PyArrow engine in Parquet format, offering massive disk space compression and accelerated read speeds for time-series analysis.
 * **Terminal UI Progress Tracker:** Uses `tqdm` to provide visual telemetry inside the terminal while piping granular troubleshooting statements out of view to a freshly overwritten `pipeline.log` file.
+* **TradingView Ticker Translation:** Built-in mapping utility converts TradingView's hyphen-to-underscore quirks (e.g., `BAJAJ_AUTO`) back into official NSE broker strings (`BAJAJ-AUTO`).
 
 ## Prerequisites
 * Python 3.8+ (or Anaconda environment)
@@ -38,21 +48,21 @@ This pipeline is designed as the foundational data layer for a quantitative trad
    ```
     _(Note: This requires `pyarrow` for Parquet compression and `jinja2` for the HTML dashboard)._
 
-3. Create a .env file in the root directory and add your credentials:
+3. Create a `.env` file in the root directory and add your credentials:
    ```
    FYERS_CLIENT_ID="YOUR_CLIENT_ID-100"
    FYERS_SECRET_KEY="YOUR_SECRET_KEY"
    FYERS_ACCESS_TOKEN="YOUR_ACCESS_TOKEN"
    ```
-4. Create a `tickers.csv` file in the root directory with the list of symbols you want to download. Ensure the header is named `symbol`.
-   ```
-   symbol
-   NSE:RELIANCE-EQ
-   NSE:TCS-EQ
-   ```
-## Usage
-Because Indian regulations dictate that Fyers access tokens expire daily, run through these two steps every day you ingest data:
 
+## Workflow Phase 1: Data Preparation
+I source the list of Tickers from TradingView, and place the raw CSV exports into the `data/` folder and run the utility script to format them for the Fyers API:
+```bash
+python utils/tv_to_fyers.py
+```
+This generates the target files (e.g., `NSE500_Fyers_Format.csv`) which `main.py` uses for ingestion.
+## Workflow Phase 2: Daily Operations
+Because Indian regulations dictate that Fyers access tokens expire daily, run through these two steps every day you ingest data.
 ### Step 1: Refresh Your Token
 Run the authentication script to generate a valid session string:
 ```bash
@@ -75,7 +85,13 @@ The script will:
 3. Fetch missing data in 99-day chunks, respecting API limits.
 4. Merge, deduplicate, and compress the new data into Parquet files.
 5. Generate a fresh `dashboard.html` summarizing your data lake.
+## Auditing & Troubleshooting
+If you suspect network timeouts caused missed tickers during a large batch download, run the audit script to cross-reference your drive against your target list:
+```bash
+python utils/find_missing.py
+```
+Because the pipeline is strictly incremental, simply rerunning `python main.py` will instantly skip the completed files and attempt to fetch only the missing data.
 ## Output
 - **Time-Series Data**: Saved in the `data/` directory as `{SYMBOL}.parquet`.
 - **Health Metrics**: Open `dashboard.html` in any web browser to view active structural coverage dates, total captured rows, and calculated telemetry gaps.
-- **Logs**: Diagnostic step reports are sent directly to `pipeline.log`, which auto-overwrites with every new pipeline pass.
+- **Logs**: Diagnostic step reports are sent directly to `pipeline.log`, which auto-overwrites with every new run of the pipeline.
