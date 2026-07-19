@@ -5,6 +5,7 @@ load_dotenv()
 
 CLIENT_ID = os.getenv("FYERS_CLIENT_ID")
 ACCESS_TOKEN = os.getenv("FYERS_ACCESS_TOKEN")
+FYERS_SECRET_KEY = os.getenv("FYERS_SECRET_KEY")
 
 # Rate Limit Configs
 # Fyers max is 200/min. We target 170 to maintain a safe buffer.
